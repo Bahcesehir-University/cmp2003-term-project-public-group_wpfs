@@ -27,15 +27,11 @@ bool TripAnalyzer::parseHour(const string& dtRaw, int& hourOut) {
     if (c == string::npos) return false;
 
     int i = (int)c - 1;
-    while (i >= 0 && isspace((unsigned char)s[i])) i--;
-    if (i < 0 || !isdigit((unsigned char)s[i])) return false;
+    if (i < 0 || !isdigit(s[i])) return false;
 
     int h = s[i] - '0';
     i--;
-
-    if (i >= 0 && isdigit((unsigned char)s[i])) {
-        h = (s[i] - '0') * 10 + h;
-    }
+    if (i >= 0 && isdigit(s[i])) h = (s[i] - '0') * 10 + h;
 
     if (h < 0 || h > 23) return false;
     hourOut = h;
@@ -48,8 +44,9 @@ void TripAnalyzer::processLine(const string& line) {
     string f[6];
     if (!split6(line, f)) return;
 
-    const string& zone = f[1];
-    const string& dt = f[3];
+    const string& zone = f[2];
+    const string& dt   = f[4];
+
     if (zone.empty() || dt.empty()) return;
 
     int h;
@@ -72,8 +69,7 @@ void TripAnalyzer::ingestFile(const string& csvPath) {
     while (getline(file, line)) {
         if (first) {
             first = false;
-            if (line.find("TripID") != string::npos)
-                continue;
+            continue;
         }
         processLine(line);
     }
