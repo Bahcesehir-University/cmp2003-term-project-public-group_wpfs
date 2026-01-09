@@ -24,17 +24,20 @@ bool TripAnalyzer::split6(const string& line, string out[6]) {
 }
 
 bool TripAnalyzer::parseHour(const string& dtRaw, int& hourOut) {
-    size_t colonPos = dtRaw.find(':');
+    size_t spacePos = dtRaw.find(' ');
+    if (spacePos == string::npos) return false;
+    
+    size_t colonPos = dtRaw.find(':', spacePos);
     if (colonPos == string::npos || colonPos == 0) return false;
 
     int i = (int)colonPos - 1;
-    while (i >= 0 && isspace((unsigned char)dtRaw[i])) i--;
+    while (i > (int)spacePos && isspace((unsigned char)dtRaw[i])) i--;
     
-    if (i < 0 || !isdigit((unsigned char)dtRaw[i])) return false;
+    if (i <= (int)spacePos || !isdigit((unsigned char)dtRaw[i])) return false;
 
     string hStr = "";
     hStr += dtRaw[i];
-    if (i > 0 && isdigit((unsigned char)dtRaw[i-1])) {
+    if (i > (int)spacePos + 1 && isdigit((unsigned char)dtRaw[i-1])) {
         hStr = dtRaw[i-1] + hStr;
     }
 
