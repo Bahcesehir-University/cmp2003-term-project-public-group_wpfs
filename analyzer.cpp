@@ -12,34 +12,33 @@ string TripAnalyzer::trim(const string& s) {
 
 bool TripAnalyzer::split6(const string& line, string out[6]) {
     size_t start = 0;
-    int i = 0;
-
-    while (i < 6) {
-        size_t pos = line.find(',', start);
-        if (pos == string::npos) {
-            out[i++] = trim(line.substr(start));
-            break;
-        }
-        out[i++] = trim(line.substr(start, pos - start));
-        start = pos + 1;
+    for (int i = 0; i < 6; i++) {
+        size_t pos = (i == 5) ? string::npos : line.find(',', start);
+        if (pos == string::npos && i != 5) return false;
+        out[i] = trim(line.substr(start, pos - start));
+        start = (pos == string::npos) ? line.size() : pos + 1;
     }
-
-    return i == 6;
+    return true;
 }
 
-bool TripAnalyzer::parseHour(const string& dt, int& hour) {
-    size_t c = dt.find(':');
-    if (c == string::npos || c < 2) return false;
+bool TripAnalyzer::parseHour(const string& dtRaw, int& hourOut) {
+    string s = trim(dtRaw);
+    size_t c = s.find(':');
+    if (c == string::npos) return false;
 
-    if (!isdigit(dt[c - 1])) return false;
+    int i = (int)c - 1;
+    while (i >= 0 && isspace((unsigned char)s[i])) i--;
+    if (i < 0 || !isdigit((unsigned char)s[i])) return false;
 
-    int h = dt[c - 1] - '0';
-    if (c >= 2 && isdigit(dt[c - 2])) {
-        h = (dt[c - 2] - '0') * 10 + h;
+    int h = s[i] - '0';
+    i--;
+
+    if (i >= 0 && isdigit((unsigned char)s[i])) {
+        h = (s[i] - '0') * 10 + h;
     }
 
     if (h < 0 || h > 23) return false;
-    hour = h;
+    hourOut = h;
     return true;
 }
 
@@ -49,19 +48,16 @@ void TripAnalyzer::processLine(const string& line) {
     string f[6];
     if (!split6(line, f)) return;
 
-    string zone = trim(f[1]);
-    string dt   = trim(f[3]);
-
+    const string& zone = f[1];
+    const string& dt = f[3];
     if (zone.empty() || dt.empty()) return;
 
-    int hour;
-    if (!parseHour(dt, hour)) return;
-
-    for (char& c : zone) c = toupper((unsigned char)c);
+    int h;
+    if (!parseHour(dt, h)) return;
 
     ZoneStats& z = stats[zone];
     z.total++;
-    z.byHour[hour]++;
+    z.byHour[h]++;
 }
 
 void TripAnalyzer::ingestFile(const string& csvPath) {
@@ -76,8 +72,7 @@ void TripAnalyzer::ingestFile(const string& csvPath) {
     while (getline(file, line)) {
         if (first) {
             first = false;
-            if (line.find("TripID") != string::npos &&
-                line.find("PickupZoneID") != string::npos)
+            if (line.find("TripID") != string::npos)
                 continue;
         }
         processLine(line);
