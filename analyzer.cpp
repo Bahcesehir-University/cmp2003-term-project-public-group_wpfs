@@ -10,58 +10,54 @@ string TripAnalyzer::trim(const string& s) {
     return s.substr(a, b - a + 1);
 }
 
-string TripAnalyzer::normalizeZone(const string& s) {
-    string z = trim(s);
-    for (char& c : z) c = toupper((unsigned char)c);
-    return z;
+bool TripAnalyzer::split6(const string& line, string out[6]) {
+    size_t start = 0;
+    int i = 0;
+
+    while (i < 6) {
+        size_t pos = line.find(',', start);
+        if (pos == string::npos) {
+            out[i++] = trim(line.substr(start));
+            break;
+        }
+        out[i++] = trim(line.substr(start, pos - start));
+        start = pos + 1;
+    }
+
+    return i == 6;
 }
 
-bool TripAnalyzer::parseHour(const string& raw, int& hour) {
-    for (size_t i = 0; i + 1 < raw.size(); i++) {
-        if (isdigit(raw[i]) && isdigit(raw[i + 1])) {
-            int h = (raw[i] - '0') * 10 + (raw[i + 1] - '0');
-            if (h >= 0 && h <= 23) {
-                hour = h;
-                return true;
-            }
-        }
+bool TripAnalyzer::parseHour(const string& dt, int& hour) {
+    size_t c = dt.find(':');
+    if (c == string::npos || c < 2) return false;
+
+    if (!isdigit(dt[c - 1])) return false;
+
+    int h = dt[c - 1] - '0';
+    if (c >= 2 && isdigit(dt[c - 2])) {
+        h = (dt[c - 2] - '0') * 10 + h;
     }
-    return false;
+
+    if (h < 0 || h > 23) return false;
+    hour = h;
+    return true;
 }
 
 void TripAnalyzer::processLine(const string& line) {
     if (line.empty()) return;
 
-    vector<string> fields;
-    size_t start = 0;
+    string f[6];
+    if (!split6(line, f)) return;
 
-    while (true) {
-        size_t pos = line.find(',', start);
-        if (pos == string::npos) {
-            fields.push_back(trim(line.substr(start)));
-            break;
-        }
-        fields.push_back(trim(line.substr(start, pos - start)));
-        start = pos + 1;
-    }
+    string zone = trim(f[1]);
+    string dt   = trim(f[3]);
 
-    string zone = "";
-    int hour = -1;
+    if (zone.empty() || dt.empty()) return;
 
-    for (const string& f : fields) {
-        if (zone.empty()) {
-            bool ok = !f.empty();
-            for (char c : f)
-                if (!isalnum((unsigned char)c)) ok = false;
-            if (ok) zone = normalizeZone(f);
-        }
+    int hour;
+    if (!parseHour(dt, hour)) return;
 
-        if (hour == -1) {
-            parseHour(f, hour);
-        }
-    }
-
-    if (zone.empty() || hour < 0) return;
+    for (char& c : zone) c = toupper((unsigned char)c);
 
     ZoneStats& z = stats[zone];
     z.total++;
