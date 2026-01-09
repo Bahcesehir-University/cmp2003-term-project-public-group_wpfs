@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <cctype>
 
-using namespace std;
-
 string TripAnalyzer::trim(const string& s) {
     size_t a = s.find_first_not_of(" \t\r\n");
     if (a == string::npos) return "";
@@ -24,35 +22,31 @@ bool TripAnalyzer::split6(const string& line, string out[6]) {
 }
 
 bool TripAnalyzer::parseHour(const string& dtRaw, int& hourOut) {
-    size_t spacePos = dtRaw.find(' ');
-    if (spacePos == string::npos) return false;
-    
-    size_t colonPos = dtRaw.find(':', spacePos);
-    if (colonPos == string::npos || colonPos == 0) return false;
+    string s = trim(dtRaw);
+    size_t c = s.find(':');
+    if (c == string::npos) return false;
 
-    int i = (int)colonPos - 1;
-    while (i > (int)spacePos && isspace((unsigned char)dtRaw[i])) i--;
-    
-    if (i <= (int)spacePos || !isdigit((unsigned char)dtRaw[i])) return false;
+    int i = (int)c - 1;
+    while (i >= 0 && isspace((unsigned char)s[i])) i--;
+    if (i < 0 || !isdigit((unsigned char)s[i])) return false;
 
-    string hStr = "";
-    hStr += dtRaw[i];
-    if (i > (int)spacePos + 1 && isdigit((unsigned char)dtRaw[i-1])) {
-        hStr = dtRaw[i-1] + hStr;
+    int h = s[i] - '0';
+    i--;
+
+    if (i >= 0 && isdigit((unsigned char)s[i])) {
+        h = (s[i] - '0') * 10 + h;
+        i--;
+        if (i >= 0 && isdigit((unsigned char)s[i])) return false;
     }
 
-    try {
-        int h = stoi(hStr);
-        if (h >= 0 && h <= 23) {
-            hourOut = h;
-            return true;
-        }
-    } catch (...) {}
-    return false;
+    if (h < 0 || h > 23) return false;
+    hourOut = h;
+    return true;
 }
 
 void TripAnalyzer::processLine(const string& line) {
     if (line.empty()) return;
+
     string f[6];
     if (!split6(line, f)) return;
 
@@ -70,22 +64,29 @@ void TripAnalyzer::processLine(const string& line) {
 
 void TripAnalyzer::ingestFile(const string& csvPath) {
     stats.clear();
+
     ifstream file(csvPath);
     if (!file.is_open()) return;
 
     string line;
     bool first = true;
+
     while (getline(file, line)) {
         if (first) {
             first = false;
-            if (line.find("TripID") != string::npos) continue;
+            if (line.find("TripID") != string::npos &&
+                line.find("PickupZoneID") != string::npos)
+                continue;
         }
         processLine(line);
     }
 }
 
 vector<ZoneCount> TripAnalyzer::topZones(int k) const {
+    if (k <= 0 || stats.empty()) return {};
+
     vector<ZoneCount> v;
+    v.reserve(stats.size());
     for (const auto& kv : stats)
         v.push_back({kv.first, kv.second.total});
 
@@ -99,11 +100,17 @@ vector<ZoneCount> TripAnalyzer::topZones(int k) const {
 }
 
 vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
+    if (k <= 0 || stats.empty()) return {};
+
     vector<SlotCount> v;
+    v.reserve(stats.size() * 4);
+
     for (const auto& kv : stats) {
+        const string& z = kv.first;
+        const ZoneStats& zs = kv.second;
         for (int h = 0; h < 24; h++) {
-            if (kv.second.byHour[h] > 0)
-                v.push_back({kv.first, h, kv.second.byHour[h]});
+            if (zs.byHour[h] > 0)
+                v.push_back({z, h, zs.byHour[h]});
         }
     }
 
