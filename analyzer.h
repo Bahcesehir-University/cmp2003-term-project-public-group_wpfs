@@ -18,13 +18,8 @@ struct SlotCount {
 
 class TripAnalyzer {
 public:
-    // Parse Trips.csv, skip dirty rows, never crash
     void ingestFile(const string& csvPath);
-
-    // Top K zones: count desc, zone asc
     vector<ZoneCount> topZones(int k = 10) const;
-
-    // Top K slots: count desc, zone asc, hour asc
     vector<SlotCount> topBusySlots(int k = 10) const;
 
 private:
