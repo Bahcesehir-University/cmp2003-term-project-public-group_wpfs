@@ -10,63 +10,62 @@ string TripAnalyzer::trim(const string& s) {
     return s.substr(a, b - a + 1);
 }
 
-bool TripAnalyzer::split6(const string& line, string out[6]) {
-    for (int i = 0; i < 6; i++) out[i].clear();
-
-    size_t start = 0;
-    int field = 0;
-
-    while (field < 6) {
-        size_t pos = line.find(',', start);
-        if (pos == string::npos) {
-            out[field++] = trim(line.substr(start));
-            break;
-        }
-        out[field++] = trim(line.substr(start, pos - start));
-        start = pos + 1;
-    }
-
-    return field > 3;
+string TripAnalyzer::normalizeZone(const string& s) {
+    string z = trim(s);
+    for (char& c : z) c = toupper((unsigned char)c);
+    return z;
 }
 
-bool TripAnalyzer::parseHour(const string& dtRaw, int& hourOut) {
-    string s = trim(dtRaw);
-    size_t c = s.find(':');
-    if (c == string::npos) return false;
-
-    int i = (int)c - 1;
-    while (i >= 0 && isspace((unsigned char)s[i])) i--;
-    if (i < 0 || !isdigit((unsigned char)s[i])) return false;
-
-    int h = s[i] - '0';
-    i--;
-
-    if (i >= 0 && isdigit((unsigned char)s[i])) {
-        h = (s[i] - '0') * 10 + h;
+bool TripAnalyzer::parseHour(const string& raw, int& hour) {
+    for (size_t i = 0; i + 1 < raw.size(); i++) {
+        if (isdigit(raw[i]) && isdigit(raw[i + 1])) {
+            int h = (raw[i] - '0') * 10 + (raw[i + 1] - '0');
+            if (h >= 0 && h <= 23) {
+                hour = h;
+                return true;
+            }
+        }
     }
-
-    if (h < 0 || h > 23) return false;
-    hourOut = h;
-    return true;
+    return false;
 }
 
 void TripAnalyzer::processLine(const string& line) {
     if (line.empty()) return;
 
-    string f[6];
-    if (!split6(line, f)) return;
+    vector<string> fields;
+    size_t start = 0;
 
-    const string& zone = f[1];
-    const string& dt   = f[3];
+    while (true) {
+        size_t pos = line.find(',', start);
+        if (pos == string::npos) {
+            fields.push_back(trim(line.substr(start)));
+            break;
+        }
+        fields.push_back(trim(line.substr(start, pos - start)));
+        start = pos + 1;
+    }
 
-    if (zone.empty() || dt.empty()) return;
+    string zone = "";
+    int hour = -1;
 
-    int h;
-    if (!parseHour(dt, h)) return;
+    for (const string& f : fields) {
+        if (zone.empty()) {
+            bool ok = !f.empty();
+            for (char c : f)
+                if (!isalnum((unsigned char)c)) ok = false;
+            if (ok) zone = normalizeZone(f);
+        }
+
+        if (hour == -1) {
+            parseHour(f, hour);
+        }
+    }
+
+    if (zone.empty() || hour < 0) return;
 
     ZoneStats& z = stats[zone];
     z.total++;
-    z.byHour[h]++;
+    z.byHour[hour]++;
 }
 
 void TripAnalyzer::ingestFile(const string& csvPath) {
@@ -90,10 +89,7 @@ void TripAnalyzer::ingestFile(const string& csvPath) {
 }
 
 vector<ZoneCount> TripAnalyzer::topZones(int k) const {
-    if (k <= 0 || stats.empty()) return {};
-
     vector<ZoneCount> v;
-    v.reserve(stats.size());
     for (const auto& kv : stats)
         v.push_back({kv.first, kv.second.total});
 
@@ -107,17 +103,12 @@ vector<ZoneCount> TripAnalyzer::topZones(int k) const {
 }
 
 vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
-    if (k <= 0 || stats.empty()) return {};
-
     vector<SlotCount> v;
-    v.reserve(stats.size() * 4);
 
     for (const auto& kv : stats) {
-        const string& z = kv.first;
-        const ZoneStats& zs = kv.second;
         for (int h = 0; h < 24; h++) {
-            if (zs.byHour[h] > 0)
-                v.push_back({z, h, zs.byHour[h]});
+            if (kv.second.byHour[h] > 0)
+                v.push_back({kv.first, h, kv.second.byHour[h]});
         }
     }
 
