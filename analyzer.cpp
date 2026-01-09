@@ -1,5 +1,4 @@
 #include "analyzer.h"
-
 #include <fstream>
 #include <algorithm>
 #include <cctype>
@@ -122,3 +121,4 @@ vector<SlotCount> TripAnalyzer::topBusySlots(int k) const {
     if ((int)v.size() > k) v.resize(k);
     return v;
 }
+
